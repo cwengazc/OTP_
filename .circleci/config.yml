@@ -1,0 +1,54 @@
+version: 2.1
+
+orbs:
+  php: circleci/php@1.1.0
+workflows:
+  build_and_test:
+    jobs:
+      - build_and_test
+jobs:
+  build_and_test:
+    docker:
+      - image: cimg/php:8.2.5
+    steps:
+      - checkout    #libjpeg62-dev
+      - run: |
+          sudo apt update -y &&
+          sudo apt install -y libfreetype6-dev libjpeg62-dev libmcrypt-dev libpng-dev libgmp-dev re2c libmhash-dev libmcrypt-dev file zlib1g-dev  &&
+          sudo ln -s /usr/include/x86_64-linux-gnu/gmp.h /usr/local/include/
+      - run: mkdir ./php-ext-cache/
+      - restore_cache:
+          keys:
+            - extensions-v1-{{ checksum ".circleci/scripts/install-php-extensions.sh" }}
+            - extensions-v1-
+    
+      - run:
+          name: Install Extensions (if not cached)
+          command: |
+            ls -al  /usr/local/include/php/
+            sudo pecl install mcrypt-1.0.4 && \
+            sudo docker-php-ext-configure gd --with-freetype=/usr/include/ --with-jpeg=/usr/include/ && \
+            sudo docker-php-ext-configure gmp  && \
+            sudo docker-php-ext-install -j$(nproc) gmp gd && \
+            sudo docker-php-ext-enable mcrypt
+            ls -al  /usr/local/include/php/
+     
+
+      - php/install-composer:
+          install-version: 2.1.0
+      - php/install-packages
+
+      # - run:
+      #     name: View PHP environment
+      #     command: |
+      #      composer dump-autoload
+            # php -v &&  composer global update && composer init
+            # composer --version &&
+            # ./vendor/bin/phpunit --version 
+      # - run:
+      #     name: Phpunit tests
+      #     command: |
+      #       ./vendor/bin/phpunit --log-junit test-results/phpunit/junit.xml
+      - store_test_results:
+          path: test-results
+        
